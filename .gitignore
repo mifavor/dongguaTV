@@ -11,7 +11,6 @@ cache.db-wal
 cache.db-shm
 *.log
 db.json
-capacitor.config.json
 app-debug.apk
 public/cache
 

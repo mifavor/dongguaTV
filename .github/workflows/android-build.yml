@@ -1,0 +1,148 @@
+name: Android Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'  # 只在推送版本标签时触发
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Setup Java (JDK 17)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      # 显示当前 Capacitor 配置
+      - name: Show Capacitor Config
+        run: |
+          echo "=== Capacitor Config ==="
+          cat capacitor.config.json
+
+      # 从网站图标生成 Android App 图标（各分辨率）
+      - name: Generate App Icons from Website Icon
+        run: |
+          # 安装 ImageMagick
+          sudo apt-get update && sudo apt-get install -y imagemagick
+          
+          # 源图标
+          ICON_SRC="public/icon.png"
+          
+          # 生成各分辨率图标
+          # mipmap-mdpi: 48x48
+          convert "$ICON_SRC" -resize 48x48 android/app/src/main/res/mipmap-mdpi/ic_launcher.png
+          convert "$ICON_SRC" -resize 48x48 android/app/src/main/res/mipmap-mdpi/ic_launcher_round.png
+          convert "$ICON_SRC" -resize 108x108 android/app/src/main/res/mipmap-mdpi/ic_launcher_foreground.png
+          
+          # mipmap-hdpi: 72x72
+          convert "$ICON_SRC" -resize 72x72 android/app/src/main/res/mipmap-hdpi/ic_launcher.png
+          convert "$ICON_SRC" -resize 72x72 android/app/src/main/res/mipmap-hdpi/ic_launcher_round.png
+          convert "$ICON_SRC" -resize 162x162 android/app/src/main/res/mipmap-hdpi/ic_launcher_foreground.png
+          
+          # mipmap-xhdpi: 96x96
+          convert "$ICON_SRC" -resize 96x96 android/app/src/main/res/mipmap-xhdpi/ic_launcher.png
+          convert "$ICON_SRC" -resize 96x96 android/app/src/main/res/mipmap-xhdpi/ic_launcher_round.png
+          convert "$ICON_SRC" -resize 216x216 android/app/src/main/res/mipmap-xhdpi/ic_launcher_foreground.png
+          
+          # mipmap-xxhdpi: 144x144
+          convert "$ICON_SRC" -resize 144x144 android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png
+          convert "$ICON_SRC" -resize 144x144 android/app/src/main/res/mipmap-xxhdpi/ic_launcher_round.png
+          convert "$ICON_SRC" -resize 324x324 android/app/src/main/res/mipmap-xxhdpi/ic_launcher_foreground.png
+          
+          # mipmap-xxxhdpi: 192x192
+          convert "$ICON_SRC" -resize 192x192 android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+          convert "$ICON_SRC" -resize 192x192 android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png
+          convert "$ICON_SRC" -resize 432x432 android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png
+          
+          echo "✅ App icons generated from website icon"
+
+      - name: Sync Capacitor
+        run: npx cap sync android
+
+      - name: Make gradlew executable
+        run: chmod +x android/gradlew
+
+      - name: Build Release APK (Universal - All Architectures)
+        working-directory: android
+        run: ./gradlew assembleRelease
+
+      - name: List APK files
+        run: |
+          echo "=== APK Files ==="
+          find android -name "*.apk" -type f
+          echo "=== APK Details ==="
+          ls -lh android/app/build/outputs/apk/release/ || echo "No release APKs found"
+
+      - name: Get version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Rename APK with version
+        run: |
+          mv android/app/build/outputs/apk/release/app-release-unsigned.apk \
+             android/app/build/outputs/apk/release/E视界-${{ steps.version.outputs.VERSION }}-universal.apk || \
+          mv android/app/build/outputs/apk/release/app-release.apk \
+             android/app/build/outputs/apk/release/E视界-${{ steps.version.outputs.VERSION }}-universal.apk || \
+          echo "APK rename skipped"
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: E视界-apk
+          path: android/app/build/outputs/apk/release/*.apk
+          retention-days: 30
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: "E视界 ${{ steps.version.outputs.VERSION }}"
+          body: |
+            ## 📦 E视界 ${{ steps.version.outputs.VERSION }}
+            
+            ### 📱 Android APK 下载
+            
+            | 文件 | 说明 |
+            |------|------|
+            | `E视界-${{ steps.version.outputs.VERSION }}-universal.apk` | 通用版 (支持所有设备) |
+            
+            ### 🖥️ 支持的 CPU 架构
+            - ✅ `armeabi-v7a` (ARM 32位 - 旧手机/盒子)
+            - ✅ `arm64-v8a` (ARM 64位 - 大多数现代手机/盒子)
+            - ✅ `x86` (Intel/AMD 32位 - 模拟器)
+            - ✅ `x86_64` (Intel/AMD 64位 - 模拟器/部分平板)
+            
+            ### 📺 设备兼容性
+            - ✅ 手机 (Android 5.0+)
+            - ✅ 平板
+            - ✅ Android TV / 电视盒子
+            - ✅ 智能投影仪
+            
+            ### 🌐 内置服务器
+            - 默认连接: `https://ednovas.video`
+            
+            ---
+            
+            > ⚠️ 首次安装可能需要允许"安装未知来源应用"
+          files: android/app/build/outputs/apk/release/*.apk
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

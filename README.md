@@ -1,4 +1,4 @@
-# 冬瓜TV MAX (DongguaTV Enhanced Edition)
+# E视界 (DongguaTV Enhanced Edition)
 
 这是一个经过全面重构和升级的现代流媒体聚合播放器，基于 Node.js 和 Vue 3 构建。相比原版，本作引入了 Netflix 风格的沉浸式 UI、TMDb 数据驱动的动态榜单、以及智能的多源聚合搜索功能。
 
@@ -570,11 +570,48 @@ docker run -d -p 3000:3000 \
     ```
 3.  **下载 APK**：
     构建完成后，在 GitHub 仓库的 **"Releases"** 页面即可下载生成的 `.apk` 安装包。
-    *此 APK 包含完整的电视端 (Android TV) 适配。*
+    *此 APK 包含完整的电视端 (Android TV) 适配和网站图标。*
 
+#### 📱 APK 默认配置
 
+| 配置项 | 值 |
+|--------|-----|
+| **App 名称** | E视界 |
+| **默认服务器** | `https://ednovas.video` |
+| **图标来源** | 自动从 `public/icon.png` 生成 |
 
+#### 🔧 自定义服务器地址
 
+如果您 Fork 了本项目并部署了自己的服务器，可以修改 App 连接地址：
+
+1.  编辑 `capacitor.config.json`，修改 `server.url` 为您的服务器地址：
+    ```json
+    {
+      "appId": "com.ednovas.donguatv",
+      "appName": "E视界",
+      "webDir": "public",
+      "server": {
+        "url": "https://your-server.com",
+        "cleartext": true
+      }
+    }
+    ```
+
+2.  提交更改并推送 Tag 触发自动构建：
+    ```bash
+    git add capacitor.config.json
+    git commit -m "修改服务器地址"
+    git tag v1.0.0
+    git push origin main --tags
+    ```
+
+3.  或者本地手动构建：
+    ```bash
+    npm install
+    npx cap sync android
+    cd android && ./gradlew assembleRelease
+    ```
+    APK 位于 `android/app/build/outputs/apk/release/`
 
 ---
 
